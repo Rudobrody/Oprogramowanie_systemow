@@ -58,6 +58,22 @@ unsigned char Key;
 unsigned char oldKey;
 unsigned char keyZamieniony;
 int dziesiatkiX,dziesiatkiY,jednosciX,jednosciY, wspolrzedneX, wspolrzedneY;
+float m_Tp;
+float m_Kp;
+float m_Ki;
+float m_Kd;
+float m_sum;
+float m_Smin;
+float m_Smax;
+float m_prevIn;
+
+float Kp;
+float Ti;
+float Td;
+float Tp;
+float Smin;
+float Smax;
+float deltaIn;
     int main()
 
     {
@@ -99,7 +115,7 @@ int dziesiatkiX,dziesiatkiY,jednosciX,jednosciY, wspolrzedneX, wspolrzedneY;
 
 					if((Key!= oldKey) && (Key!=0)) // jesli nastapila zmiana klawisza wciskajacego i nie jest to stan w ktorym zaden nie jest wcisniety
 					{
-						dziesiatkiX = int(Key);
+						dziesiatkiX = int(Key) + 5; // 50 to jest offset rysunku
 						odczytKlawiatury(Key);
 						Bufor_wsp_X[9] = keyZamieniony +'0'; //wpisz licze do bufora
 						ktoraCyfreWprowadza++;
@@ -190,7 +206,7 @@ int dziesiatkiX,dziesiatkiY,jednosciX,jednosciY, wspolrzedneX, wspolrzedneY;
 
             		}
 
-            		for (int xx = 0; xx < 100; xx++) // kreska pozioma
+            		for (int xx = 0; xx < 150; xx++) // kreska pozioma
             		{
             		    SetPixel(ekran,xx,0);
             		    SetPixel(ekran,xx,2);
@@ -222,12 +238,27 @@ int dziesiatkiX,dziesiatkiY,jednosciX,jednosciY, wspolrzedneX, wspolrzedneY;
             	break;
             	case 4: // namalowanie pozycji startowej
 
-            		for (int yy = 0; yy <= 97  ; yy++ ) // 97 bo bo klocek przenoszony ma wyokosc 4 wiec zeby lina byla przyczepiona do gory
+            		for (int yy = 0; yy <= 91 ; yy++ ) // 97 bo bo klocek przenoszony ma wyokosc 4 wiec zeby lina byla przyczepiona do gory
             		{
-            			SetPixel(ekran,99,yy);
+            			SetPixel(ekran,150,yy);
             		}
-            	break;
 
+            		for(int yy = 91; yy < 103; yy++) // ładunek czesc pionowa
+            		{
+            			SetPixel(ekran,142,yy);
+            			SetPixel(ekran,158,yy);
+            		}
+
+            		for(int xx = 142; xx < 158; xx++) // ładunek czesc pozioma
+            		{
+            		   	SetPixel(ekran,xx,91);
+            		    SetPixel(ekran,xx,103);
+            		}
+            	etapProgramu++;	
+            	break;
+            	
+            	case 5: // animacja ruchu zgodnie z działaniem regulatora 
+            	break;
             	default:
             	break;
             }
