@@ -1,0 +1,62 @@
+//fragment1////////////////////////////////////////////////////////////////////////
+switch(ktoraCyfreWprowadza)
+            	{
+					case 0: //dziesiatki x
+					Key = KEYBOARD.GetKey(); //pobierz klawisz ktory jest wciskany
+
+					if((Key!= oldKey) && (Key!=0)) // jesli nastapila zmiana klawisza wciskajacego i nie jest to stan w ktorym zaden nie jest wcisniety
+					{
+						odczytKlawiatury(Key);
+						Bufor_wsp_X[9] = keyZamieniony +'0'; //wpisz licze do bufora
+						ktoraCyfreWprowadza++;
+
+					}
+					oldKey=Key;
+					printf("Key %i \n",Key);
+					break;
+
+					case 1: //jednosci x
+					Key = KEYBOARD.GetKey(); //pobierz klawisz ktory jest wciskany
+
+					if(Key!= oldKey && (Key!=0)) //
+					{
+						odczytKlawiatury(Key);
+            Bufor_wsp_X[10] = Key +'0'; //wpisz licze do bufora
+						ktoraCyfreWprowadza++;
+
+					}
+					oldKey=Key;
+					printf("Key %i \n",Key);
+					break;
+
+					case 2: //dziesiatki Y
+
+					Key = KEYBOARD.GetKey(); //pobierz klawisz ktory jest wciskany
+
+					if(Key!= oldKey && (Key!=0)) //
+					{
+						odczytKlawiatury(Key);
+            Bufor_wsp_Y[9] = Key +'0'; //wpisz licze do bufora
+						ktoraCyfreWprowadza++;
+
+					}
+					oldKey=Key;
+					printf("Key %i \n",Key);
+					break;
+
+					case 3: //Jednosci Y
+					Key = KEYBOARD.GetKey(); //pobierz klawisz ktory jest wciskany
+
+					if(Key!= oldKey && (Key!=0)) //
+					{
+						odczytKlawiatury(Key);
+            Bufor_wsp_Y[10] = Key +'0'; //wpisz licze do bufora
+
+					}
+					oldKey=Key;
+					printf("Key %i \n",Key);
+					break;
+            	}
+              ////////////////////////koniec fragment1///////////////////////////////////////////////////////////////
+              
+              
