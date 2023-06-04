@@ -1,0 +1,724 @@
+//#define CPP_EXAMPLE
+
+#define BUFFERSYNC
+
+#define WIN_PLOT
+#define NazwaPlikuDanych "Data/TMSLABoutputData.csv"
+#define CSV_NAGLOWEK "Wsp. x,Wsp. y1,Wsp. y2\n"
+#define CSV_DANE "%i,%i,%i\n",Tim, y[0], y[1]
+
+
+#include "main.h"
+#include  "math.h"
+#ifdef TMSLAB_WIN
+  #include "stdio.h"
+#endif
+
+unsigned long *ekran; // Adres obszaru graficznego LCD [8*128*2]
+#ifdef TMSLAB_C2000
+unsigned char *textEkran; // Adres obszaru tekstowego [40*16/2]
+#endif
+
+#ifdef TMSLAB_WIN
+unsigned short int *textEkran; // Adres obszaru tekstowego [40*16/2]
+extern int (*PartialRefresh)();
+char credits[43]="- UKLAD REGULACJI POLOZENIA -";  // Tekst wyswietlany w naglowku symulatora
+long Timer2IsrPeriod=1; // okres pracy symulowanego licznika Timer2 podany w przybliďż˝eniu w ms
+#ifdef WIN_PLOT
+  FILE* outputCSV=0;
+#endif
+  #endif
+
+int Tim = 0;                // Licznik uzytkownika
+unsigned int preScale = 0;  // Preskaler licznika uzytkownika
+volatile char EnableRefresh = 0;    //Zezwolenie na odswiezenie zawartosci pamieci graficznej
+
+R_P_LCD_TMSLAB LCD;             // Obiekt obslugujacy LCD
+R_P_KEYBOARD_TMSLAB KEYBOARD;   // Obiekt obslugujacy klawiature
+R_P_LEDBAR_TMSLAB LEDBAR;       // Obiekt obslugujacy diody LED
+
+
+//Tablice danych/obiektow graficznych
+#define MaxObj 200
+#ifdef CPP_EXAMPLE
+square objects[MaxObj];
+#else
+int dx[MaxObj];
+int dy[MaxObj];
+int s[MaxObj];
+int x[MaxObj];
+int y[MaxObj];
+#endif
+
+unsigned char Bufor_wsp_X[] = "X(1:100):  ";
+unsigned char Bufor_wsp_Y[] = "Y(1:100):  ";
+int etapProgramu = 0;
+int ktoraCyfreWprowadza = 0;
+unsigned char Key;
+unsigned char oldKey;
+unsigned char keyZamieniony;
+int dziesiatkiX,dziesiatkiY,jednosciX,jednosciY, wspolrzedneX, wspolrzedneY;
+int obecny_Y = 0;
+int ktoraIteracja=0;
+int odleglosc;
+float wyjscieObiektu;
+
+float u = 0; // wartosc zadana
+float e = 0; // uchyb
+float wyjscie = 0; // wyjscie
+float Kp=3;
+float Ti=12;
+float Td=0;
+
+// --------------------------------------------------------------------------------------------------
+#ifndef PID_CONTROLLER_H
+#define PID_CONTROLLER_H
+
+typedef struct {
+
+	/* Controller gains */
+	float Kp;
+	float Ki;
+	float Kd;
+
+	/* Derivative low-pass filter time constant */
+	float tau;
+
+	/* Output limits */
+	float limMin;
+	float limMax;
+
+	/* Integrator limits */
+	float limMinInt;
+	float limMaxInt;
+
+	/* Sample time (in seconds) */
+	float T;
+
+	/* Controller "memory" */
+	float integrator;
+	float prevError;			/* Required for integrator */
+	float differentiator;
+	float prevMeasurement;		/* Required for differentiator */
+
+	/* Controller output */
+	float out;
+
+} PIDController;
+
+void  PIDController_Init(PIDController *pid);
+float PIDController_Update(PIDController *pid, float setpoint, float measurement);
+
+#endif
+// --------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------
+/* Controller parameters */
+#define PID_KP  7
+#define PID_KI  2
+#define PID_KD  0
+
+#define PID_TAU 0.02
+
+#define PID_LIM_MIN -100
+#define PID_LIM_MAX 100
+
+#define PID_LIM_MIN_INT -3
+#define PID_LIM_MAX_INT 3
+
+#define SAMPLE_TIME_S 0.01
+
+/* Maximum run-time of simulation */
+#define SIMULATION_TIME_MAX 1000.0
+
+/* Simulated dynamical system (first order) */
+float TestSystem_Update(float inp);
+
+// --------------------------------------------------------------------------------------------------
+
+// ********************************moje wypociny ----------------------------------
+#ifndef Object_H
+#define Object_H
+typedef struct {
+
+	float Kp_obiektu;
+	float Ti_obiektu;
+	float biegun;
+	float wyjscie;
+} Object;
+float Object_Update(Object *obj, float wyjscie_regulatora);
+#endif
+
+#define KP_OBIEKTU 1
+#define TI_OBIEKTU 10
+#define BIEGUN -0.2
+// ********************************moje wypociny eend ----------------------------------
+
+    int main()
+
+    {
+        SetUpPeripherials();
+#ifdef TMSLAB_C2000
+        LCD.LCD_Init(ekran, textEkran);
+#endif
+
+#ifdef TMSLAB_WIN
+        LCD.LCD_Init(&ekran,&textEkran);
+#ifdef WIN_PLOT
+  outputCSV=fopen(NazwaPlikuDanych,"w+" );
+  fprintf(outputCSV,CSV_NAGLOWEK);
+#endif
+#endif
+
+        KEYBOARD.InitKB(100);
+
+        LEDBAR.InitLedBar();
+
+        InitData();
+
+        EnableInterrupts();
+
+        while (1)
+        {
+            EnableRefresh = 1;
+            LCD.Synchronize();
+            EnableRefresh = 0;
+
+            switch(etapProgramu)
+            {
+            	case 0: //wprowadzenie wspolrzednych
+
+            	switch(ktoraCyfreWprowadza)
+            	{
+					case 0: //dziesiatki x
+					Key = KEYBOARD.GetKey(); //pobierz klawisz ktory jest wciskany
+
+					if((Key!= oldKey) && (Key!=0)) // jesli nastapila zmiana klawisza wciskajacego i nie jest to stan w ktorym zaden nie jest wcisniety
+					{
+						dziesiatkiX = int(Key);// + 5; // 50 to jest offset rysunku
+					//	odczytKlawiatury(Key); // to jest ta linijka ktora decyduj o tym czy jest to symulator czy rzeczywisty uklad
+					//	Bufor_wsp_X[9] = keyZamieniony +'0'; //wpisz licze do bufora
+						Bufor_wsp_X[9] = Key +'0';
+						ktoraCyfreWprowadza++;
+
+					}
+					oldKey=Key;
+					printf("Key %i \n",Key);
+					break;
+
+					case 1: //jednosci x
+					Key = KEYBOARD.GetKey(); //pobierz klawisz ktory jest wciskany
+
+					if(Key!= oldKey && (Key!=0)) //
+					{
+						jednosciX = int(Key);
+						Bufor_wsp_X[10] = Key +'0'; //wpisz licze do bufora
+						ktoraCyfreWprowadza++;
+
+					}
+					oldKey=Key;
+					printf("Key %i \n",Key);
+					break;
+
+					case 2: //dziesiatki Y
+
+					Key = KEYBOARD.GetKey(); //pobierz klawisz ktory jest wciskany
+
+					if(Key!= oldKey && (Key!=0)) //
+					{
+						dziesiatkiY = int(Key);
+						Bufor_wsp_Y[9] = Key +'0'; //wpisz licze do bufora
+						ktoraCyfreWprowadza++;
+
+					}
+					oldKey=Key;
+					printf("Key %i \n",Key);
+					break;
+
+					case 3: //Jednosci Y
+					Key = KEYBOARD.GetKey(); //pobierz klawisz ktory jest wciskany
+
+					if(Key!= oldKey && (Key!=0)) //
+					{
+						jednosciY = int(Key);
+						Bufor_wsp_Y[10] = Key +'0'; //wpisz licze do bufora
+						ktoraCyfreWprowadza++; // zeby juz nie mozna bylo wpisywac
+						etapProgramu++; // przejdz do nastepnej czesci programu
+
+					}
+					oldKey=Key;
+					printf("Key %i \n",Key);
+					break;
+
+					default:
+					break;
+            	}
+            	break;
+
+            	case 1:// zmiana wartosci tak by system wiedzial ze to liczba a nie char
+
+            		wspolrzedneX = dziesiatkiX * 10 + jednosciX;
+					wspolrzedneY = dziesiatkiY * 10 + jednosciY;
+					printf("Wspol X: %i \n Wspol Y: %i \n",wspolrzedneX, wspolrzedneY);
+					etapProgramu++;
+
+				break;
+
+            	case 2: // namalowanie "x" w punkcie wspolrzednych
+
+            		for (int yy = wspolrzedneY - 3; yy < (wspolrzedneY + 3); yy++)
+            		{
+            			ktoraIteracja++;
+            			for (;;)
+            		    {
+            				int xx = 50 + (wspolrzedneX - 3 + ktoraIteracja); // 50 to offset rysunku
+            				SetPixel(ekran,xx,yy);
+            				SetPixel(ekran,xx,(wspolrzedneY + 3 - ktoraIteracja));
+            				break;
+            		    }
+
+            		}
+            	etapProgramu++;
+
+            	break;
+
+            	case 3: // namalowanie dzwigu
+            		for (int yy = 0; yy < 100; yy++) // kreska pionowa
+            		{
+            			SetPixel(ekran,30,yy);
+            			SetPixel(ekran,32,yy);
+
+            		}
+
+            		for (int xx = 0; xx < 150; xx++) // kreska pozioma
+            		{
+            		    SetPixel(ekran,xx,0);
+            		    SetPixel(ekran,xx,2);
+
+            		}
+
+            		for(int yy = 0; yy < 14; yy++) // balast
+            		{
+            			for(int xx = 0;xx < 8; xx++)
+            			{
+            				SetPixel(ekran,xx,yy);
+            			}
+            		}
+
+            		for(int yy = 8; yy < 24; yy++) // kabina czesc pionowa
+            		{
+            			SetPixel(ekran,44,yy);
+            		}
+
+            		for(int xx = 32; xx < 44; xx++) // kabina czesc pozioma
+            		{
+            			SetPixel(ekran,xx,8);
+            			SetPixel(ekran,xx,24);
+            		}
+
+            	etapProgramu++;
+            	break;
+            	case 4: // namalowanie pozycji startowej i osi wykresów
+
+            		for (int yy = 0; yy <= 91 ; yy++ ) // 97 bo bo klocek przenoszony ma wyokosc 4 wiec zeby lina byla przyczepiona do gory
+            		{
+            			SetPixel(ekran,150,yy);
+            		}
+
+            		for(int yy = 91; yy < 103; yy++) // ładunek czesc pionowa
+            		{
+            			SetPixel(ekran,142,yy);
+            			SetPixel(ekran,158,yy);
+            		}
+
+            		for(int xx = 142; xx < 158; xx++) // ładunek czesc pozioma
+            		{
+            		   	SetPixel(ekran,xx,91);
+            		    SetPixel(ekran,xx,103);
+            		}
+
+            		for(int xx = 160; xx < 238; xx++) // oś x dolnego wykresu
+            		{
+						SetPixel(ekran,xx,123);
+            		}
+
+            		for(int yy = 73; yy < 123; yy++) // oś y dolnego wykresu
+            		{
+            			SetPixel(ekran,160,yy);
+            		}
+
+            		for(int xx = 160; xx < 238; xx++) // oś x górnego wykresu
+            		{
+            			SetPixel(ekran,xx,51);
+            		}
+
+            		for(int yy = 1; yy < 51; yy++) // oś y górnego wykresu
+            		{
+            			SetPixel(ekran,160,yy);
+            		}
+            	etapProgramu++;
+            	break;
+
+            	case 5: // obliczeniee odlglosci od punktu startowego i stworzenie obiektu inercyjngo
+            		odleglosc = sqrt((wspolrzedneX*wspolrzedneX)+(wspolrzedneY*wspolrzedneY));
+            		etapProgramu++;
+            	break;
+
+            	case 6:
+            		for(int xx = 160; xx < 238; xx++) // oś y górnego wykresu
+            		{
+            			SetPixel(ekran,xx,(51-(odleglosc/2))); // odleglosc dzielę przez 2 bo uzytkownik wprowadza wartosci do 100 a wykres jest wyskalowany na 50
+            		}
+            		printf("Rysujee na wysokosci %i \n",51-(odleglosc/2));
+            		etapProgramu++;
+            	break;
+
+            	case 7:
+            		Object obj = {KP_OBIEKTU, TI_OBIEKTU, BIEGUN};
+
+            		PIDController pid = { PID_KP, PID_KI, PID_KD,
+            		                          PID_TAU,
+            		                          PID_LIM_MIN, PID_LIM_MAX,
+            					  PID_LIM_MIN_INT, PID_LIM_MAX_INT,
+            		                          SAMPLE_TIME_S };
+
+            		  PIDController_Init(&pid);
+
+            		  float setpoint = (float)odleglosc;
+
+            		  for (float t = 0.0; t <= SIMULATION_TIME_MAX; t += SAMPLE_TIME_S)
+            		  {
+
+            		            /* Get measurement from system */
+            			  float measurement = obj.wyjscie;
+
+            		            /* Compute new control signal */
+            		            PIDController_Update(&pid, setpoint, measurement);
+            		            Object_Update(&obj, pid.out);
+            		            printf("%f\t%f\t%f\r\n", t, measurement, pid.out);
+            		            SetPixel(ekran,160, (123-(int)obj.wyjscie/2));
+            		  }
+            		  etapProgramu++;
+            	break;
+
+
+
+            }
+
+
+            LEDBAR.SetValue(Tim);
+
+
+
+            PrintText(textEkran, Bufor_wsp_X, 11, 0, 14);
+            PrintText(textEkran, Bufor_wsp_Y, 11, 0, 15); // (, kolumna , wiersz)
+
+            DrawPixels(Key);
+#ifdef TMSLAB_WIN
+            if(PartialRefresh()) return 0;
+#ifdef WIN_PLOT
+	// Zapis danych do pliku
+	fprintf(outputCSV,CSV_DANE);
+	//printf("time %i \n",Tim);
+	fflush(outputCSV);
+	fflush(stdout);
+#endif
+#endif
+
+        }
+    }
+
+#ifdef TMSLAB_C2000
+
+    interrupt
+    void Timer2Isr()
+    {
+
+#ifdef BUFFERSYNC
+        if (EnableRefresh)
+        LCD.PartialRefresh();
+#else
+        LCD.PartialRefresh();
+#endif
+
+        KEYBOARD.PartialRefresh();
+
+        if (++preScale == 50000)
+        {
+            preScale = 0;
+            Tim++;
+        }
+    }
+
+    unsigned long ADRFTECHED = 0;
+    interrupt
+    void NoIsr()
+    {
+        ADRFTECHED = PieCtrlRegs.PIECTRL.bit.PIEVECT;
+        asm(" ESTOP0");
+    }
+
+    void EnableInterrupts()
+    {
+
+        EALLOW;
+        //Ustawienie wektorow przerwan
+        unsigned long VECTBEG = (unsigned long) &PieVectTable;
+        unsigned long VECTLAST = (unsigned long) &PieVectTable
+        + sizeof(PieVectTable);
+        while (VECTBEG >= VECTLAST)
+        *(unsigned long*) VECTBEG++ = (unsigned long) NoIsr;
+        PieVectTable.TIMER2_INT = Timer2Isr;
+
+        CpuTimer2Regs.TCR.bit.TIE = 1;
+        CpuTimer2Regs.TCR.bit.TRB = 1;
+
+        IER = IER_MASK;//Odblokuj przerwania
+        asm(" push ier");
+        asm(" pop dbgier");
+
+        PieCtrlRegs.PIECTRL.bit.ENPIE = 1;
+        PieCtrlRegs.PIEACK.all = 0xffff;
+        EDIS;
+        EINT;
+    }
+
+    void SetUpPeripherials()
+    {
+        SetupCoreSystem();
+        ekran = (unsigned long *) 0x8000;              //[8*128*2]
+        textEkran = (unsigned char*) 0x8a00;//[40*16/2]
+        EALLOW;
+        //Okres licznika T2
+        CpuTimer2Regs.PRD.all = System_Clk * Timer2ISR_Period;
+        EDIS;
+    }
+    extern "C"
+    {
+    int _system_pre_init()
+    {
+        EALLOW;
+        WdRegs.WDWCR.all = 0x68;
+        EDIS;
+        return (1);
+    }
+    }
+#endif
+
+#ifdef TMSLAB_WIN
+    void EnableInterrupts()
+    {}
+    void SetUpPeripherials()
+    {}
+    void Timer2Isr()
+    {
+        if(++preScale==500)
+        {   preScale=0;Tim++;}
+    }
+#endif
+
+    void InitData()
+    {
+        for (int a = 0; a < (128 * 8); a++)
+            ekran[a] = 0;
+        for (int a = 0; a < (40 * 16); a++)
+            textEkran[a] = ' ';
+    #ifndef CPP_EXAMPLE
+
+    #endif
+    }
+    void ClearScreen()
+    {
+
+        for (int a = 0; a < (128 * 8); a++)
+        ekran[a] = 0;
+    }
+
+    void odczytKlawiatury(unsigned char keyOdczytany)
+    {
+
+    	switch(keyOdczytany)
+    	{
+
+    	case 16:
+    				keyZamieniony = 1;
+    			break;
+    	case 15:
+    				keyZamieniony = 2;
+    			break;
+    	case 14:
+    	    		keyZamieniony = 3;
+    	    	break;
+  //  	case 13:
+  //  	    		keyZamieniony = 0;
+  //  	    	break;
+    	case 12:
+    	    		keyZamieniony = 7;
+    	    	break;
+    	case 11:
+    	    		keyZamieniony = 8;
+    	    	break;
+    	case 10:
+    	    		keyZamieniony = 9;
+    	    	break;
+  //  	case 09:
+  //  	    		keyZamieniony = 0;
+  //  	    	break;
+    	case 8:
+    	    		keyZamieniony = 4;
+    	    	break;
+    	case 07:
+    	    		keyZamieniony = 5;
+    	    	break;
+    	case 06:
+    	    		keyZamieniony = 6;
+    	    	break;
+  //  	case 05:
+  //  	    		keyZamieniony = 0;
+  //  	    	break;
+  //  	case 04:
+  //  	    		keyZamieniony = 0;
+  //  	    	break;
+    	case 03:
+    	    	    keyZamieniony = 0;
+    	    	break;
+  //  	case 02:
+  //  	    	    keyZamieniony = 0;
+  //  	    	break;
+  //  	case 01:
+  //  	    	    keyZamieniony = 0;
+  //  	    	break;
+
+
+
+    	}
+    }
+    void DrawPixels(int Key)
+    {
+    #ifdef CPP_EXAMPLE
+        for (int c=0;c<MaxObj;c++)
+        {
+            objects[c].move(Key,Key);
+            objects[c].draw();
+        }
+    #else
+        for (int c = 0; c < MaxObj; c++)
+        {
+            y[c] += dy[c] + 6 - Key;
+            x[c] += dx[c] + 6 - Key;
+            if (x[c] < 0)
+                x[c] += 239 * 4 - s[c];
+            if (y[c] < 0)
+                y[c] += 127 * 4 - s[c];
+            if (x[c] > 239 * 4 - s[c])
+                x[c] -= 239 * 4 - s[c];
+            if (y[c] > 127 * 4 - s[c])
+                y[c] -= 127 * 4 - s[c];
+            long sdec = (((x[c] - 120 * 4L) * (x[c] - 120 * 4L)) >> 13)
+                    + (((y[c] - 58 * 4L) * (y[c] - 58 * 4L)) >> 9);
+            long size = s[c] - sdec;
+            if (size < 0)
+                size = 0;
+            size = s[c] - size;
+
+            for (int b = y[c] >> 2; b < (y[c] + size) >> 2; b++)
+                for (int a = x[c] >> 2; a < (x[c] + size) >> 2; a++)
+                    SetPixel(ekran, a, b);
+
+        }
+    #endif
+    }
+//----------------------------------------------------------------------------------------
+    void PIDController_Init(PIDController *pid) {
+
+    	/* Clear controller variables */
+    	pid->integrator = 0.0f;
+    	pid->prevError  = 0.0f;
+
+    	pid->differentiator  = 0.0f;
+    	pid->prevMeasurement = 0.0f;
+
+    	pid->out = 0.0f;
+
+    }
+    float PIDController_Update(PIDController *pid, float setpoint, float measurement) {
+
+    	/*
+    	* Error signal
+    	*/
+        float error = setpoint - measurement;
+
+
+    	/*
+    	* Proportional
+    	*/
+        float proportional = pid->Kp * error;
+
+
+    	/*
+    	* Integral
+    	*/
+        pid->integrator = pid->integrator + 0.5f * pid->Ki * pid->T * (error + pid->prevError);
+
+    	/* Anti-wind-up via integrator clamping */
+        if (pid->integrator > pid->limMaxInt) {
+
+            pid->integrator = pid->limMaxInt;
+
+        } else if (pid->integrator < pid->limMinInt) {
+
+            pid->integrator = pid->limMinInt;
+
+        }
+
+
+    	/*
+    	* Derivative (band-limited differentiator)
+    	*/
+
+        pid->differentiator = -(2.0f * pid->Kd * (measurement - pid->prevMeasurement)	/* Note: derivative on measurement, therefore minus sign in front of equation! */
+                            + (2.0f * pid->tau - pid->T) * pid->differentiator)
+                            / (2.0f * pid->tau + pid->T);
+
+
+    	/*
+    	* Compute output and apply limits
+    	*/
+        pid->out = proportional + pid->integrator + pid->differentiator;
+
+        if (pid->out > pid->limMax) {
+
+            pid->out = pid->limMax;
+
+        } else if (pid->out < pid->limMin) {
+
+            pid->out = pid->limMin;
+
+        }
+
+    	/* Store error and measurement for later use */
+        pid->prevError       = error;
+        pid->prevMeasurement = measurement;
+
+    	/* Return controller output */
+        return pid->out;
+
+    }
+//----------------------------------------------------------------------------------------
+
+    float TestSystem_Update(float inp)
+    {
+
+        static float output = 0.0;
+        static const float alpha = 0.02;
+
+        output = (SAMPLE_TIME_S * inp + output) / (1.0 + alpha * SAMPLE_TIME_S);
+
+        return output;
+    }
+    // ********************************moje wypociny ----------------------------------
+    float Object_Update(Object *obj, float wyjscie_regulatora)
+    {
+    	obj->wyjscie = wyjscie_regulatora * obj->Kp_obiektu*(1/(1+obj->biegun*obj->Ti_obiektu));
+    	return obj->wyjscie;
+    }
+    // ********************************moje wypociny eend ----------------------------------
