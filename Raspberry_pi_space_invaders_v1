@@ -4,9 +4,13 @@
 
 #define RPiLAB
 
+int szerokosc = 0;
+int wysokosc = 0;
+
 int main(int argc, char *argv[]) {
 	SystemInit();
 	DataPrepare();
+	ClearScreen();
 	while (1) {
 		UpdateIO();
 		PrintDiagnosticInfo();
@@ -226,31 +230,36 @@ void DrawObjects() {
 			int pozycja_obiektow[640][480];
 			int nr_obiektu = 0;
 
-			for(int szerokosc = 0; szerokosc < 640; szerokosc + 20)
-			{
-				for(int wysokosc = 0; wysokosc < 480; wysokosc + 20)
+		for(int szerokosc = 0; szerokosc < 300; szerokosc+= 20)
+		{
+				for(int wysokosc = 0; wysokosc < 180; wysokosc+= 20)
 				{
 					pozycja_obiektow[szerokosc][wysokosc]= nr_obiektu;
-					for (int x = 0; x < 15; x++)
-								{
-									for(int y = 0; y < 15; y++)
-									{
-										SetPixel(GRAPH, x, y, 0xffff);
-										nr_obiektu++;
 
-									}
-								}
+
+				for (int x = 0; x < 15; x++)
+					{
+						for(int y = 0; y < 15; y++)
+						{
+							SetPixel(GRAPH,(x + szerokosc), (wysokosc + y), 0xffff);
+							nr_obiektu++;
+						}
+
+					}
+
+
+
 				}
-			}
-
-
 		}
+
+
+		//}
 	}
 
 	//Jxt = Jx;
 	//Jyt = Jy;
 
-//}
+}
 void DataPrepare() {
 	for (unsigned char a = 0; a < sizeof(struct JoY); a++)
 		((char*) &JoYAct)[a] = 0;
