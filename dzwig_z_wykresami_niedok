@@ -74,84 +74,84 @@ float Td=0;
 #ifndef PID_CONTROLLER_H
 #define PID_CONTROLLER_H
 
-typedef struct {
+typedef struct { // stworzenie struktury regulatora
 
-	/* Controller gains */
+	/* Parametry regulatora */
 	float Kp;
 	float Ki;
-	float Kd;
+//	float Kd;
 
 	/* Derivative low-pass filter time constant */
-	float tau;
+//	float tau;
 
-	/* Output limits */
+	/* Ograniczenie wyjścia regulatora */
 	float limMin;
 	float limMax;
 
-	/* Integrator limits */
+	/* Ograniczenie całkowania */
 	float limMinInt;
 	float limMaxInt;
 
-	/* Sample time (in seconds) */
+	/* Czas próbkowania ( w sekundach) */
 	float T;
 
-	/* Controller "memory" */
+	/* Uogolnienie bloku całkowania */
 	float integrator;
-	float prevError;			/* Required for integrator */
-	float differentiator;
-	float prevMeasurement;		/* Required for differentiator */
+	float prevError;			/* Błąd w chwili poprzedniej Required for integrator */
+	//float differentiator;
+	//float prevMeasurement;		/* Required for differentiator */
 
-	/* Controller output */
+	/* Wyjście regulatora */
 	float out;
 
 } PIDController;
 
-void  PIDController_Init(PIDController *pid);
-float PIDController_Update(PIDController *pid, float setpoint, float measurement);
+void  PIDController_Init(PIDController *pid); // stworzenie funkcji inicjalizujacej regulator
+float PIDController_Update(PIDController *pid, float setpoint, float measurement); // stworzenie funkcji odświeżającej regulator
 
 #endif
 // --------------------------------------------------------------------------------------------------
 // --------------------------------------------------------------------------------------------------
-/* Controller parameters */
+/* Zdefiniowanie wartości na stałe za pomocą DEFINE */
 #define PID_KP  7
 #define PID_KI  2
-#define PID_KD  0
+//#define PID_KD  0
 
-#define PID_TAU 0.02
+//#define PID_TAU 0.02
 
-#define PID_LIM_MIN -100
-#define PID_LIM_MAX 100
+#define PID_LIM_MIN -142 // To jest max jaki mozna uzyskac ze wspolrzednych 100 + 100
+#define PID_LIM_MAX 142
 
 #define PID_LIM_MIN_INT -3
 #define PID_LIM_MAX_INT 3
 
-#define SAMPLE_TIME_S 0.01
+#define SAMPLE_TIME_S 1 //0.01
 
-/* Maximum run-time of simulation */
+/* Maksymalny czas symulacji */
 #define SIMULATION_TIME_MAX 1000.0
 
-/* Simulated dynamical system (first order) */
-float TestSystem_Update(float inp);
+/* Symulacja dla regulatora  */
+// float TestSystem_Update(float inp);
 
 // --------------------------------------------------------------------------------------------------
 
 // ********************************moje wypociny ----------------------------------
 #ifndef Object_H
 #define Object_H
-typedef struct {
+typedef struct { // zdefiniowanie struktury obiektu
 
-	float Kp_obiektu;
+	float Kp_obiektu; // Określenie parametrów obiektu
 	float Ti_obiektu;
 	float biegun;
 	float wyjscie;
 } Object;
-float Object_Update(Object *obj, float wyjscie_regulatora);
+float Object_Update(Object *obj, float wyjscie_regulatora); // stworzenie funkcji odświeżającej obiekt
 #endif
-
+// zdefiniowanie na stałe parametrow obiektu za pomoca DEFINE
 #define KP_OBIEKTU 1
 #define TI_OBIEKTU 10
 #define BIEGUN -0.2
-// ********************************moje wypociny eend ----------------------------------
+// ********************************moje wypociny end ----------------------------------
 
     int main()
 
@@ -358,25 +358,23 @@ float Object_Update(Object *obj, float wyjscie_regulatora);
             	etapProgramu++;
             	break;
 
-            	case 5: // obliczeniee odlglosci od punktu startowego i stworzenie obiektu inercyjngo
-            		odleglosc = sqrt((wspolrzedneX*wspolrzedneX)+(wspolrzedneY*wspolrzedneY));
+            	case 5: // obliczeniee odlglosci od punktu startowego
+            		odleglosc = sqrt((wspolrzedneX*wspolrzedneX)+(wspolrzedneY*wspolrzedneY)); // odleglosc jest ok podawana
             		etapProgramu++;
             	break;
 
             	case 6:
-            		for(int xx = 160; xx < 238; xx++) // oś y górnego wykresu
+            		for(int xx = 160; xx < 238; xx++) // oś x dolnego wykresu
             		{
             			SetPixel(ekran,xx,(51-(odleglosc/2))); // odleglosc dzielę przez 2 bo uzytkownik wprowadza wartosci do 100 a wykres jest wyskalowany na 50
             		}
-            		printf("Rysujee na wysokosci %i \n",51-(odleglosc/2));
             		etapProgramu++;
             	break;
 
             	case 7:
             		Object obj = {KP_OBIEKTU, TI_OBIEKTU, BIEGUN};
 
-            		PIDController pid = { PID_KP, PID_KI, PID_KD,
-            		                          PID_TAU,
+            		PIDController pid = { PID_KP, PID_KI,
             		                          PID_LIM_MIN, PID_LIM_MAX,
             					  PID_LIM_MIN_INT, PID_LIM_MAX_INT,
             		                          SAMPLE_TIME_S };
@@ -389,13 +387,16 @@ float Object_Update(Object *obj, float wyjscie_regulatora);
             		  {
 
             		            /* Get measurement from system */
-            			  float measurement = obj.wyjscie;
-
+            			  	  	float measurement = obj.wyjscie;
             		            /* Compute new control signal */
             		            PIDController_Update(&pid, setpoint, measurement);
             		            Object_Update(&obj, pid.out);
-            		            printf("%f\t%f\t%f\r\n", t, measurement, pid.out);
-            		            SetPixel(ekran,160, (123-(int)obj.wyjscie/2));
+            		            printf("Czas: %f\t Wyjscie: %f\t Regulator: %f\r\n", t, measurement, pid.out);
+
+            		            for(int xx = 160; xx < 238; xx++) // oś x dolnego wykresu
+            		            {
+            		            	SetPixel(ekran,xx, (123-(int)obj.wyjscie/2));
+            		            }
             		  }
             		  etapProgramu++;
             	break;
@@ -634,32 +635,26 @@ float Object_Update(Object *obj, float wyjscie_regulatora);
     	pid->integrator = 0.0f;
     	pid->prevError  = 0.0f;
 
-    	pid->differentiator  = 0.0f;
-    	pid->prevMeasurement = 0.0f;
+    //	pid->differentiator  = 0.0f;
+    //	pid->prevMeasurement = 0.0f;
 
     	pid->out = 0.0f;
 
     }
     float PIDController_Update(PIDController *pid, float setpoint, float measurement) {
 
-    	/*
-    	* Error signal
-    	*/
+    	/* Zdefiniowanie uchybu */
         float error = setpoint - measurement;
 
 
-    	/*
-    	* Proportional
-    	*/
+    	/* Człon proporcjonalny */
         float proportional = pid->Kp * error;
 
 
-    	/*
-    	* Integral
-    	*/
+    	/* Człon całkujący */
         pid->integrator = pid->integrator + 0.5f * pid->Ki * pid->T * (error + pid->prevError);
 
-    	/* Anti-wind-up via integrator clamping */
+    	/* Anty wind up */
         if (pid->integrator > pid->limMaxInt) {
 
             pid->integrator = pid->limMaxInt;
@@ -675,15 +670,13 @@ float Object_Update(Object *obj, float wyjscie_regulatora);
     	* Derivative (band-limited differentiator)
     	*/
 
-        pid->differentiator = -(2.0f * pid->Kd * (measurement - pid->prevMeasurement)	/* Note: derivative on measurement, therefore minus sign in front of equation! */
-                            + (2.0f * pid->tau - pid->T) * pid->differentiator)
-                            / (2.0f * pid->tau + pid->T);
+       // pid->differentiator = -(2.0f * pid->Kd * (measurement - pid->prevMeasurement)	/* Note: derivative on measurement, therefore minus sign in front of equation! */
+       //                     + (2.0f * pid->tau - pid->T) * pid->differentiator)
+       //                     / (2.0f * pid->tau + pid->T);
 
 
-    	/*
-    	* Compute output and apply limits
-    	*/
-        pid->out = proportional + pid->integrator + pid->differentiator;
+    	/* Ograniczenie wyjscia */
+        pid->out = proportional + pid->integrator; //+ pid->differentiator;
 
         if (pid->out > pid->limMax) {
 
@@ -695,11 +688,11 @@ float Object_Update(Object *obj, float wyjscie_regulatora);
 
         }
 
-    	/* Store error and measurement for later use */
+    	/* Określenie uchybu */
         pid->prevError       = error;
-        pid->prevMeasurement = measurement;
+        //pid->prevMeasurement = measurement;
 
-    	/* Return controller output */
+    	/* Zwrócenie wyjścia regulatora */
         return pid->out;
 
     }
