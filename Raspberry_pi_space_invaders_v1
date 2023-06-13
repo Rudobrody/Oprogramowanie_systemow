@@ -6,6 +6,7 @@
 
 int szerokosc = 0;
 int wysokosc = 0;
+float dt = 0.1;
 
 int main(int argc, char *argv[]) {
 	SystemInit();
@@ -253,6 +254,48 @@ void DrawObjects() {
 		}
 
 
+
+		for(int szerokosc =140; szerokosc <= 160; szerokosc++)
+		{
+			for(int wysokosc = 360; wysokosc < 380; wysokosc ++ )
+			{
+				SetPixel(GRAPH,szerokosc, wysokosc, 0xffff);
+			}
+
+		}
+
+
+		while(getKey()!=0)
+		{
+			if(getKey()==75) // ruch w lewo
+			{
+				int ink=10;
+				for(int szerokosc = 0; szerokosc < 300; szerokosc-= ink)
+						{
+								for(int wysokosc = 360; wysokosc < 380; wysokosc++)
+								{
+
+				for(int szerokosc_kloc = szerokosc-10; szerokosc_kloc <= szerokosc +10; szerokosc_kloc++)
+						{
+
+								SetPixel(GRAPH,szerokosc_kloc, wysokosc, 0xffff);
+
+
+						}
+								}
+						}
+
+
+			}
+			else if(getKey()==77) // ruch w prawo
+			{
+
+			}
+			else
+			{
+
+			}
+		}
 		//}
 	}
 
