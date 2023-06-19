@@ -10,8 +10,8 @@ int prev_szerokosc_strzelec = 320;
 int prev_wysokosc_pocisk = 370;
 int szerokosc_strzalu;
 int etapProgramu=0;
-int lewaGranicaSzerokosc = 225;
-int prawaGranicaSzerokosc = 405;
+int lewaGranicaSzerokosc = 205;
+int prawaGranicaSzerokosc = 425;
 int ktoryKlawisz;
 int tablicaZyjacych[20];
 
